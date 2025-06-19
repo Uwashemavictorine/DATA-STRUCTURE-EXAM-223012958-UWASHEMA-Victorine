@@ -1,1 +1,157 @@
+How the Task Was Completed
+Dynamic Allocation: allocMat() dynamically allocates a 2D matrix using a single block of memory for efficiency.
 
+Abstract Class: MatrixOp is the base class with a pure virtual method execute(...).
+
+Derived Classes:
+
+AddOp: Adds two matrices.
+
+MulOp: Multiplies two matrices.
+
+TransposeOp: Transposes the first matrix.
+
+Execution:
+
+Matrices A and B are initialized with test data.
+
+Each operation is executed via polymorphism through the base class pointer.
+
+Results are printed using printMat().
+
+📌 Annotated Code
+cpp
+Copy
+Edit
+#include <iostream>
+#include <iomanip>
+#include <cassert>
+using namespace std;
+
+// Allocate a matrix of size rows × cols
+double** allocMat(int rows, int cols) {
+    double** M = new double*[rows];
+    M[0] = new double[rows * cols]; // Allocate a contiguous block
+    for (int i = 1; i < rows; ++i)
+        M[i] = M[0] + i * cols; // Point each row to the correct location
+    return M;
+}
+
+// Free the dynamically allocated matrix
+void freeMat(double** M) {
+    delete[] M[0]; // Delete the data block
+    delete[] M;    // Delete row pointers
+}
+
+// Abstract base class for matrix operations
+class MatrixOp {
+public:
+    // Pure virtual function to override in derived classes
+    virtual double** execute(double** A, double** B,
+        int r1, int c1, int r2, int c2,
+        int &out_r, int &out_c) = 0;
+    virtual ~MatrixOp() = default; // Virtual destructor
+};
+
+// Matrix Addition
+class AddOp : public MatrixOp {
+public:
+    double** execute(double** A, double** B,
+        int r1, int c1, int r2, int c2,
+        int &out_r, int &out_c) override
+    {
+        assert(r1 == r2 && c1 == c2); // Ensure dimensions match
+        out_r = r1; out_c = c1;
+        double** C = allocMat(out_r, out_c);
+        for (int i = 0; i < out_r; ++i)
+            for (int j = 0; j < out_c; ++j)
+                C[i][j] = A[i][j] + B[i][j];
+        return C;
+    }
+};
+
+// Matrix Multiplication
+class MulOp : public MatrixOp {
+public:
+    double** execute(double** A, double** B,
+        int r1, int c1, int r2, int c2,
+        int &out_r, int &out_c) override
+    {
+        assert(c1 == r2); // Ensure A.cols == B.rows
+        out_r = r1; out_c = c2;
+        double** C = allocMat(out_r, out_c);
+        for (int i = 0; i < out_r; ++i)
+            for (int j = 0; j < out_c; ++j) {
+                double sum = 0;
+                for (int k = 0; k < c1; ++k)
+                    sum += A[i][k] * B[k][j];
+                C[i][j] = sum;
+            }
+        return C;
+    }
+};
+
+// Matrix Transposition
+class TransposeOp : public MatrixOp {
+public:
+    double** execute(double** A, double** /*B*/,
+        int r1, int c1, int /*r2*/, int /*c2*/,
+        int &out_r, int &out_c) override
+    {
+        out_r = c1; out_c = r1;
+        double** T = allocMat(out_r, out_c);
+        for (int i = 0; i < r1; ++i)
+            for (int j = 0; j < c1; ++j)
+                T[j][i] = A[i][j];
+        return T;
+    }
+};
+
+// Prints the matrix with its dimensions and name
+void printMat(double** M, int r, int c, const string& name) {
+    cout << name << " (" << r << "×" << c << "):\n";
+    for (int i = 0; i < r; ++i) {
+        for (int j = 0; j < c; ++j)
+            cout << setw(8) << M[i][j];
+        cout << "\n";
+    }
+    cout << "\n";
+}
+
+int main() {
+    int r1 = 2, c1 = 3, r2 = 3, c2 = 2;
+
+    // Allocate and fill A and B
+    double** A = allocMat(r1, c1);
+    double** B = allocMat(r2, c2);
+
+    // Fill A with values 1..6
+    for (int i = 0; i < r1 * c1; ++i)
+        A[0][i] = i + 1;
+
+    // Fill B with values 7..12
+    for (int i = 0; i < r2 * c2; ++i)
+        B[0][i] = 7 + i;
+
+    printMat(A, r1, c1, "A");
+    printMat(B, r2, c2, "B");
+
+    // Array of matrix operations
+    MatrixOp* opsArr[] = { new AddOp(), new MulOp(), new TransposeOp() };
+    int nOps = sizeof(opsArr) / sizeof(opsArr[0]);
+
+    // Execute each operation and print result
+    for (int i = 0; i < nOps; ++i) {
+        int orows, ocols;
+        double** R = opsArr[i]->execute(A, B, r1, c1, r2, c2, orows, ocols);
+        printMat(R, orows, ocols, "Result op#" + to_string(i));
+        freeMat(R); // Free result matrix
+    }
+
+    // Clean up
+    for (auto p : opsArr) delete p;
+    freeMat(A);
+    freeMat(B);
+
+    return 0;
+}
